@@ -5,10 +5,9 @@ A Flask-based web application to predict health risk tiers (Gold, Silver, Bronze
 ## Setup
 
 1. **Install Requirements:**
-   ```bash
-   pip install -r requirements.txt
- 2. **How to run:**
-   ```bash
-   python app.py
+-- pip install -r requirements.txt
+2. **How to run:**
+-- python app.py
+
 
 
