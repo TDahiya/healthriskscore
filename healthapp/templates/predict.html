@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Predict Risk</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="layout-grid">
+        
+        <div class="sidebar">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3>Controls</h3>
+                <a href="/" style="font-size:0.8rem;">Exit</a>
+            </div>
+
+            <label>Load Preset Profile:</label>
+            <div class="preset-row">
+                <button type="button" class="btn-small" style="background:#28a745;" onclick="applyPreset('gold')">Healthy</button>
+                <button type="button" class="btn-small" style="background:#6c757d;" onclick="applyPreset('silver')">Average</button>
+                <button type="button" class="btn-small" style="background:#dc3545;" onclick="applyPreset('bronze')">At Risk</button>
+            </div>
+
+            <form method="POST">
+                <label>Model:</label>
+                <select name="model_choice">
+                    {% for name in model_names %}
+                    <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <br><br>
+
+                {% for feature in feature_names %}
+                <div class="slider-container">
+                    <div class="slider-header">
+                        <span>{{ feature }}</span>
+                        <span id="val-{{ feature }}" style="font-weight:bold; color:#007bff;">{{ current_values[feature] | round(1) }}</span>
+                    </div>
+                    <input type="range" 
+                           name="{{ feature }}" 
+                           id="in-{{ feature }}" 
+                           min="{{ stats['min'][feature] }}" 
+                           max="{{ stats['max'][feature] }}" 
+                           step="0.1"
+                           value="{{ current_values[feature] }}"
+                           oninput="document.getElementById('val-{{ feature }}').innerText = parseFloat(this.value).toFixed(1)">
+                </div>
+                {% endfor %}
+
+                <button type="submit" class="btn" style="width:100%;">Calculate Risk</button>
+            </form>
+        </div>
+
+        <div class="main-content">
+            <div class="result-box">
+                {% if prediction %}
+                    <h2>Result: {{ prediction }}</h2>
+                    
+                    <div style="height: 300px; width: 100%; margin: 20px 0;">
+                        <canvas id="riskChart"></canvas>
+                    </div>
+
+                    <div class="confidence-row">
+                        <div class="conf-item">
+                            <span class="conf-score" style="color:#28a745">{{ probs_formatted['Gold'] }}</span>
+                            <span class="conf-label">Gold</span>
+                        </div>
+                        <div class="conf-item">
+                            <span class="conf-score" style="color:#6c757d">{{ probs_formatted['Silver'] }}</span>
+                            <span class="conf-label">Silver</span>
+                        </div>
+                        <div class="conf-item">
+                            <span class="conf-score" style="color:#dc3545">{{ probs_formatted['Bronze'] }}</span>
+                            <span class="conf-label">Bronze</span>
+                        </div>
+                    </div>
+
+                {% else %}
+                    <h2>Ready to Predict</h2>
+                    <p>Adjust the sliders on the left and click "Calculate Risk".</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const presets = {{ presets | tojson }};
+        function applyPreset(type) {
+            const data = presets[type];
+            for (const [key, value] of Object.entries(data)) {
+                const input = document.getElementById('in-' + key);
+                const display = document.getElementById('val-' + key);
+                if (input) {
+                    input.value = value;
+                    display.innerText = value.toFixed(1);
+                }
+            }
+        }
+
+        {% if prediction %}
+        const ctx = document.getElementById('riskChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Gold', 'Silver', 'Bronze'],
+                datasets: [{
+                    label: 'Probability',
+                    data: {{ probs | safe }},
+                    backgroundColor: ['#28a745', '#6c757d', '#dc3545']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+        {% endif %}
+    </script>
+</body>
+</html>
