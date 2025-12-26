@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Project Documentation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Specific styles for the deep-dive documentation */
+        .doc-wrapper { max-width: 900px; margin: 40px auto; padding: 0 40px; }
+        .doc-section { margin-bottom: 60px; border-bottom: 1px solid #eee; padding-bottom: 40px; }
+        .doc-section:last-child { border-bottom: none; }
+        
+        h1 { font-size: 2.5rem; margin-bottom: 10px; color: #333; }
+        h2 { font-size: 1.8rem; color: #007bff; margin-top: 0; margin-bottom: 20px; }
+        h3 { font-size: 1.3rem; margin-top: 30px; margin-bottom: 10px; font-weight: bold; }
+        
+        p, li { font-size: 1.1rem; line-height: 1.7; color: #444; margin-bottom: 15px; }
+        ul { padding-left: 20px; margin-bottom: 20px; }
+        
+        /* Code snippet styling */
+        .code-block {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            color: #333;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .highlight { color: #d63384; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div style="padding: 20px; border-bottom: 1px solid #ddd; background: #fff;">
+        <div style="max-width: 900px; margin: 0 auto; padding: 0 40px;">
+            <a href="/" class="btn btn-outline">← Back to Dashboard</a>
+        </div>
+    </div>
+
+    <div class="doc-wrapper">
+        <h1>Technical Documentation</h1>
+        <p style="font-size: 1.2rem; color: #666;">
+            A comprehensive breakdown of the Data Science pipeline used in the Health Risk Predictor (Group 10 Final Project).
+        </p>
+
+        <div class="doc-section">
+            <h2>1. Data Acquisition & Cleaning</h2>
+            <p>The project utilizes the <b>Fitbit Fitness Tracker Dataset</b> (sourced from Kaggle). The raw data was distributed across multiple disjointed CSV files, presenting a challenge for unified analysis.</p>
+            
+            <h3>The Merging Strategy</h3>
+            <p>To create a holistic view of user health, we performed an inner join on <code>Id</code> and <code>Date</code> across three primary datasets:</p>
+            <ul>
+                <li><b>dailyActivity_merged.csv:</b> Provided step counts, distance, and activity intensities.</li>
+                <li><b>sleepDay_merged.csv:</b> Provided sleep records (minutes asleep, time in bed).</li>
+                <li><b>heartrate_seconds_merged.csv:</b> Provided granular heart rate data.</li>
+            </ul>
+            <p><i>Note: Heart rate data was originally at the second-level resolution. We aggregated this to a daily mean to match the granularity of activity and sleep logs.</i></p>
+        </div>
+
+        <div class="doc-section">
+            <h2>2. Feature Engineering</h2>
+            <p>Raw daily logs fluctuate wildly (e.g., a user might run a marathon one day and rest the next). To build a stable risk profile, we engineered <b>aggregated features</b> representing long-term habits.</p>
+            
+            <div class="code-block">
+# Example Aggregation Logic
+df_grouped = df.groupby('Id').agg({
+    'TotalSteps': 'mean',        <span class="highlight"># -> AvgSteps</span>
+    'SedentaryMinutes': 'mean',  <span class="highlight"># -> AvgSedentary</span>
+    'BMI': 'mean',               <span class="highlight"># -> AvgBMI</span>
+    'TotalMinutesAsleep': 'mean' <span class="highlight"># -> AvgSleepHours</span>
+})
+            </div>
+
+            <h3>Key Features Selected:</h3>
+            <ul>
+                <li><b>AvgSteps:</b> The primary indicator of physical activity.</li>
+                <li><b>AvgVeryActive:</b> Minutes spent in high-intensity cardio zones.</li>
+                <li><b>AvgSedentary:</b> A critical negative risk factor. High values (>1000 mins) correlate strongly with poor health outcomes.</li>
+                <li><b>AvgBMI:</b> Body Mass Index, used as a physiological baseline.</li>
+                <li><b>AvgHeartRate:</b> Resting and active heart rate combined average.</li>
+            </ul>
+        </div>
+
+        <div class="doc-section">
+            <h2>3. Handling Small Data (SDV)</h2>
+            <p>The original dataset contained only <b>33 unique users</b>. This sample size is statistically insufficient for training robust Machine Learning models (it leads to severe overfitting).</p>
+            
+            <h3>The Solution: Gaussian Copula Synthesis</h3>
+            <p>We utilized the <b>SDV (Synthetic Data Vault)</b> library to augment the dataset. The <code>GaussianCopulaSynthesizer</code> learned the statistical distribution and correlations of the original 33 users (e.g., "People with high steps usually have lower BMI").</p>
+            
+            <p><b>Outcome:</b> We generated a new dataset of <b>1033 users</b>. This synthetic data preserved the mathematical properties of the original real-world data while providing enough volume for the Random Forest algorithm to learn patterns effectively.</p>
+        </div>
+
+        <div class="doc-section">
+            <h2>4. Defining Risk Tiers (K-Means)</h2>
+            <p>Since the dataset did not come with "High Risk" or "Low Risk" labels, we had to create them. We used <b>Unsupervised Learning</b> to discover natural groupings in the data.</p>
+            
+            <h3>Algorithm: K-Means Clustering</h3>
+            <p>We standardized the data using <code>StandardScaler</code> and applied K-Means with <code>k=3</code>. The algorithm successfully identified three distinct health profiles:</p>
+            <ul>
+                <li><b>Cluster 0 (Gold / Low Risk):</b> Characterized by high daily steps (>8,000), low BMI, and low sedentary time.</li>
+                <li><b>Cluster 1 (Silver / Medium Risk):</b> Average activity levels and moderate sleep patterns.</li>
+                <li><b>Cluster 2 (Bronze / High Risk):</b> Characterized by high sedentary minutes (>1,000), higher BMI, and low activity.</li>
+            </ul>
+        </div>
+
+        <div class="doc-section">
+            <h2>5. Supervised Classification</h2>
+            <p>With our "Ground Truth" established by K-Means, we trained supervised models to predict these tiers for new, unseen users.</p>
+            
+            <h3>Model 1: Logistic Regression</h3>
+            <p>Used as a baseline. It performed well but struggled with the non-linear decision boundaries between the "Silver" and "Gold" tiers.</p>
+            
+            <h3>Model 2: Random Forest Classifier (Champion)</h3>
+            <p>We implemented a Random Forest with 200 estimators. This ensemble method excelled at capturing complex interactions, such as how high sleep duration can mitigate the risk of moderate activity.</p>
+            
+            <div class="code-block">
+# Model Performance
+Accuracy: ~98%
+F1-Score (Weighted): 0.98
+            </div>
+
+            <p><b>Deployment:</b> The trained models and scalers were serialized into <code>.pkl</code> files, which this Flask application loads to perform real-time predictions based on your input.</p>
+        </div>
+    </div>
+</body>
+</html>
